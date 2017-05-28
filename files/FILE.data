@@ -1,4 +1,9 @@
-This is a dummy file with a random extension. Which contains no info except this text. This file will be used to test the file splitter, which will split the file into segments of predefined size. After this I will pull a file from windows (random file and see if it works) after that I will try to put it back together. Since all files are of any type are represented as a series of Bytes this will be a very good test.
+This is a dummy file with a random extension. Which contains no info except this text.
+This file will be used to test the file splitter, which will split the file into segments of predefined size.
+After this I will pull a file from windows (random file and see if it works) after that I will try to put it back together.
+Since all files are of any type are represented as a series of Bytes this will be a very good test.
+
+
 Here is a bible chapter Isaiah 62:
 Chapter 62
 In the last days, Israel will be gathered—Zion will be established—Her watchmen will teach about the Lord—The gospel standard will be lifted up—The people will be called holy, the redeemed of the Lord.

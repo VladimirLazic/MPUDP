@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.7)
-project(UDP-continuous-stream)
-
+project(MPUDP)
 set(CMAKE_C_STANDARD 11)
 include_directories(include)
-
-set(SOURCE_FILES main.c )
-add_executable(P ${SOURCE_FILES})
+link_libraries(pcap pthread)
+set(SOURCE_FILES src/segmenter.c)
+add_executable(sender ${SOURCE_FILES} src/sender.c)
+add_executable(reciever ${SOURCE_FILES} src/reciever.c)
