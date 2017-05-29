@@ -128,11 +128,11 @@ void packet_handler(unsigned char *param, const struct pcap_pkthdr *packetHeader
         size = sizeof(temp.message);
     }
     memcpy(&temp.message, appData, size);
-    printRawData((unsigned char *) temp.message, size);
     printEthernetHeader(eh);
     printIPHeader(ih);
     printUDPHeader(uh);
     printAppData(appData, appLength);
+    printRawData((unsigned char *) temp.message, size);
     pthread_mutex_unlock(&mutex);
     getchar();
 }

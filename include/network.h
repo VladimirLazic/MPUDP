@@ -29,7 +29,7 @@
 
 #define DEFAULT_PORT   27015
 #define DEFAULT_FILE_LEN 1024
-#define DEFAULT_MESSAGE_LEN 512
+#define DEFAULT_MESSAGE_LEN 510
 #define BUF_LEN 512
 /**
  * @struct EthernetHeader

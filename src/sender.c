@@ -9,6 +9,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 FileInfo file;
 Segment *segment = NULL;
 
+#define NUM_OF_THREADS 5
 void packet_handler(unsigned char *param, const struct pcap_pkthdr *packet_header, const unsigned char *packet_data);
 
 void *device_thread_function(void *params);
@@ -163,7 +164,7 @@ void create_packet_header(unsigned char *datagram, Datagram data) {
 
     //Creating a udp header
     udp_hdr->srcPort = htons(8080);
-    udp_hdr->dstPort = htons(8080);
+    udp_hdr->dstPort = 8080;
     udp_hdr->datagramLength = sizeof(Datagram) + sizeof(UDPHeader);
 
     //Creating a ip header
@@ -178,7 +179,11 @@ void create_packet_header(unsigned char *datagram, Datagram data) {
     ip_hdr->srcAddr[1]=168;
     ip_hdr->srcAddr[2]=0;
     ip_hdr->srcAddr[3]=107;
-
+    ip_hdr->version = 4;
+    ip_hdr->headerLength = 20 / 4;
+    ip_hdr->tos = 0;
+    ip_hdr->ttl = 128;
+    ip_hdr->length = sizeof(IPHeader) + sizeof(Datagram) + sizeof(UDPHeader);
     memcpy(ip_helper, ip_hdr, 22);
 
     //Creating ip and udp headers
