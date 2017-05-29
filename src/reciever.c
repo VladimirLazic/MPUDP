@@ -127,10 +127,8 @@ void packet_handler(unsigned char *param, const struct pcap_pkthdr *packetHeader
     } else {
         size = sizeof(temp.message);
     }
-    memcpy(&temp.message, packetData, size);
+    memcpy(&temp.message, appData, size);
     printRawData((unsigned char *) temp.message, size);
-    //memset(&temp, (unsigned int)packetData, sizeof(Datagram));
-    // DEBUG INFO
     printEthernetHeader(eh);
     printIPHeader(ih);
     printUDPHeader(uh);
