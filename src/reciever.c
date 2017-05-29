@@ -1,93 +1,131 @@
-#include<stdbool.h>
 #include <segmenter.h>
 #include <network.h>
+
 int NumberOfPackets = 0;
+//Datagram recivedDatagrams[DEFAULT_FILE_LEN]; //NEVER USED
 
-Datagram recivedDatagrams[DEFAULT_FILE_LEN];
+
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
 void packet_handler(unsigned char *param, const struct pcap_pkthdr *packet_header, const unsigned char *packet_data);
 void *device_thread_function(void *params);
-
 int main() {
     pcap_if_t *devices;
     pcap_if_t *device;
+    pthread_t *device_threads;
+    unsigned char working_intefaces = 0;
+    unsigned char thread;
     char error_buffer[PCAP_ERRBUF_SIZE];
-    char filter_exp[] = "udp";
-    struct bpf_program fcode;
-    pthread_t device_thread[NUM_OF_THREADS];
-    int i = 0, NumberOfThreads = 0;
-
     if (pcap_findalldevs(&devices, error_buffer) == -1)
     {
         printf("Error in pcap_findalldevs: %s\n", error_buffer);
-        return -1;
+        exit(-1);
     }
-
-    //Testing print
-    printf("Devices found: \n");
     for (device = devices; device; device = device->next) {
-        printf("\tDevice: name - %s\n\t        description - %s\n", device->name, device->description);
-    }
-    printf("\n");
-    /*
-    for (device = devices, i = 0; device; device = device->next, i++) {
-        if (pthread_create(&device_thread[i], NULL, &device_thread_function, device)) {
-            printf("Error creating a thread for device: %s\n", device->name);
-        }
-        else {
-            NumberOfThreads++;
+        /**<We want all network interfaces that aren't loop back and aren't "any" (for linux any captures usb and lo)*/
+        if (device->flags && !(device->flags & PCAP_IF_LOOPBACK) && (device->flags & (PCAP_IF_RUNNING + PCAP_IF_UP)) &&
+            strcasecmp(device->name, "any")) {
+            working_intefaces++;
+            printInterface(device);
         }
     }
-
-    for (i = 0; i < NumberOfThreads; i++) {
-        pthread_join(device_thread[i], NULL);
+    if (!working_intefaces) {
+        printf("No running network interfaces were found exiting\n");
+        exit(-2);
     }
-*/
+    device_threads = malloc(sizeof(pthread_t) * working_intefaces);
+    working_intefaces = 0;
+    for (device = devices; device; device = device->next) {
+        if (device->flags && !(device->flags & PCAP_IF_LOOPBACK) && (device->flags & PCAP_IF_RUNNING) &&
+            strcasecmp(device->name, "any")) {
+            if (pthread_create(&device_threads[working_intefaces], NULL, &device_thread_function, device)) {
+                printf("Couldn't create thread for %s\n", device->name);
+                exit(-3);
+            }
+            working_intefaces++;
+        }
+    }
+    for (thread = 0; thread < working_intefaces; thread++) {
+        pthread_join(device_threads[thread], NULL);
+    }
+    free(device_threads);
     return 0;
 }
 
 void *device_thread_function(void *device) {
-    pcap_if_t *thread_device = (pcap_if_t *)device;
-    pcap_t* device_handle;					// Descriptor of capture device
-    char error_buffer[PCAP_ERRBUF_SIZE];	// Error buffer
-    char packet[12 + sizeof(Datagram)];
-    int i = 0;
+    pcap_if_t *threadDevice = (pcap_if_t *) device;
+    pcap_t *deviceHandle;
+    char error_buffer[PCAP_ERRBUF_SIZE];
+    struct bpf_program fcode;
+    char filterExpr[] = "ip and udp";
+    unsigned int netmask = 0;
 
-    // Open the capture device
-    if ((device_handle = pcap_open_live(thread_device->name,
-                                        65536,
-                                        0,
-                                        2000,
-                                        error_buffer
+#ifdef _WIN32
+    if (threadDevice->addresses != NULL)
+    netmask = ((struct sockaddr_in *)(threadDevice->addresses->netmask))->sin_addr.S_un.S_addr;
+     else
+    netmask = 0xffffff;
+#else
+    if (!threadDevice->addresses->netmask)
+        netmask = 0;
+    else
+        netmask = ((struct sockaddr_in *) (threadDevice->addresses->netmask))->sin_addr.s_addr;
+#endif
+
+
+    //char packet[12 + sizeof(Datagram)];  //NEVER USED
+    if ((deviceHandle = pcap_open_live(threadDevice->name,
+                                       65536,
+                                       1,
+                                       2000,
+                                       error_buffer
     )) == NULL)
     {
-        printf("\nUnable to open the adapter. %s is not supported by libpcap/WinPcap\n", thread_device->name);
+        printf("\n%s\n", error_buffer);
+        return NULL;
+    }
+    if (pcap_compile(deviceHandle, &fcode, filterExpr, 1, netmask)) {
+        printf("\n Unable to compile the packet filter. Check the syntax.\n");
+        return NULL;
+    }
+    if (pcap_setfilter(deviceHandle, &fcode) < 0) {
+        printf("\n Error setting the filter.\n");
         return NULL;
     }
 
-    pcap_loop(device_handle, 0, packet_handler, NULL);
+    pcap_loop(deviceHandle, 0, packet_handler, NULL);
+
+    return NULL;
 }
 
+
+/**
+ * @todo
+ *  Get timestamps from packetHeader
+ *
+ */
 
 void packet_handler(unsigned char *param, const struct pcap_pkthdr *packet_header, const unsigned char *packet_data) {
     pthread_mutex_lock(&mutex);
     Datagram temp;
-    // Retrieve position of ethernet_header
+    unsigned long appLength;
+    unsigned char *appData;
     EthernetHeader* eh;
-    eh = (EthernetHeader*)packet_data;
+    IPHeader *ih;
+    UDPHeader *uh;
+    eh = (EthernetHeader *) packet_data;
+    ih = (IPHeader *) (packet_data + sizeof(EthernetHeader));
+    uh = (UDPHeader *) ((unsigned char *) ih + ih->headerLength * 4);
+    appLength = (unsigned long) (ntohs(uh->datagramLength) - 8);
+    appData = (unsigned char *) uh + 8;
 
-    // Check the type of next protocol in packet
-    if (ntohs(eh->type) == 0x800)	// Ipv4
-    {
-        IPHeader* ih;
-        ih = (IPHeader*)(packet_data + sizeof(EthernetHeader));
-
-        if (ih->nextProtocol == 17) // UDP
-        {
-            //memset(&temp, &packet_data, sizeof(Datagram));
-        }
-    }
-
+    memcpy(&temp.message, packet_data, sizeof(temp.message));
+    printRawData((unsigned char *) temp.message, 512);
+    //memset(&temp, (unsigned int)packet_data, sizeof(Datagram));
+    // DEBUG INFO
+    printEthernetHeader(eh);
+    printIPHeader(ih);
+    printUDPHeader(uh);
+    printAppData(appData, appLength);
     pthread_mutex_unlock(&mutex);
+    getchar();
 }

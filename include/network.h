@@ -1,28 +1,36 @@
+/** @file network.h
+ * @brief Standard network utilities prototypes and structures
+ *  This file contains all the prototypes necessary for for printing information about every header and other
+ *  general use functions and network structures
+ * @author Vladimir Lazic
+ * @author Stefan Nicetin (niketic95)
+ * @bug None for now
+ */
+
 #ifndef MPUDP_NETWORK_H
 #define MPUDP_NETWORK_H
-
-#define DEFAULT_PORT   27015
-#define DEFAULT_FILE_LEN 1024
-#define DEFAULT_MESSAGE_LEN 512
-#define BUF_LEN 512
-#define NUM_OF_THREADS 5
-
 
 #ifdef _WIN32
 #define HAVE_STRUCT_TIMESPEC
 #pragma comment(lib, "Ws2_32.lib")
 #endif // _WIN32
 
-#include <pthread.h>
-#include <pcap.h>
-
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS
 #else
-#include <netinet/in.h>
 #include <time.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #endif
 
+#include <stdbool.h>
+#include <pthread.h>
+#include <pcap.h>
+
+#define DEFAULT_PORT   27015
+#define DEFAULT_FILE_LEN 1024
+#define DEFAULT_MESSAGE_LEN 512
+#define BUF_LEN 512
 /**
  * @struct EthernetHeader
  * @brief
@@ -83,4 +91,67 @@ typedef struct datagram
     int datagramId;
     bool sent;
 }Datagram;
-#endif //MPUDP_NETWORK_H
+
+/**
+ * @brief
+ *  Prints detailed info about the device including its IPv4 info
+ * @param dev
+ *  Device descriptor
+ */
+void printInterface(pcap_if_t *dev);
+
+/**
+ * @brief
+ *  Converts sockaddr to human readable text
+ * @param address
+ *  Socket address structure
+ * @return
+ *  Human readable text
+ */
+char *convertSockaddrToString(struct sockaddr *address);
+
+/**
+ * @brief
+ *  Prints data for given len
+ * @param data
+ *  Data to print
+ * @param data_length
+ *  How much to print
+ */
+void printRawData(unsigned char *data, long data_length);
+
+/**
+ * @brief
+ *  Prints Ethernet header info
+ * @param eh
+ *  EthernetHeader to print
+ */
+void printEthernetHeader(EthernetHeader *eh);
+
+/**
+ * @brief
+ *  Prints IP header info
+ * @param ih
+ *  IP header to print
+ */
+void printIPHeader(IPHeader *ih);
+
+/**
+ * @brief
+ *  Prints UDP header info
+ * @param uh
+ *  UDP header to print
+ */
+void printUDPHeader(UDPHeader *uh);
+
+/**
+ * @brief
+ *  Prints top layer info
+ * @param data
+ *  Data to print
+ * @param data_length
+ *  How much to print
+ */
+void printAppData(unsigned char *data, long data_length);
+
+#endif
