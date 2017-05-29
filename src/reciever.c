@@ -6,7 +6,8 @@ int NumberOfPackets = 0;
 
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-void packet_handler(unsigned char *param, const struct pcap_pkthdr *packet_header, const unsigned char *packet_data);
+
+void packet_handler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData);
 void *device_thread_function(void *params);
 int main() {
     pcap_if_t *devices;
@@ -22,7 +23,8 @@ int main() {
     }
     for (device = devices; device; device = device->next) {
         /**<We want all network interfaces that aren't loop back and aren't "any" (for linux any captures usb and lo)*/
-        if (device->flags && !(device->flags & PCAP_IF_LOOPBACK) && (device->flags & (PCAP_IF_RUNNING + PCAP_IF_UP)) &&
+        if (device->flags && !(device->flags & PCAP_IF_LOOPBACK) &&
+            (device->flags & PCAP_IF_RUNNING && device->flags & PCAP_IF_UP) &&
             strcasecmp(device->name, "any")) {
             working_intefaces++;
             printInterface(device);
@@ -35,7 +37,8 @@ int main() {
     device_threads = malloc(sizeof(pthread_t) * working_intefaces);
     working_intefaces = 0;
     for (device = devices; device; device = device->next) {
-        if (device->flags && !(device->flags & PCAP_IF_LOOPBACK) && (device->flags & PCAP_IF_RUNNING) &&
+        if (device->flags && !(device->flags & PCAP_IF_LOOPBACK) &&
+            (device->flags & PCAP_IF_RUNNING && device->flags & PCAP_IF_UP) &&
             strcasecmp(device->name, "any")) {
             if (pthread_create(&device_threads[working_intefaces], NULL, &device_thread_function, device)) {
                 printf("Couldn't create thread for %s\n", device->name);
@@ -104,23 +107,29 @@ void *device_thread_function(void *device) {
  *
  */
 
-void packet_handler(unsigned char *param, const struct pcap_pkthdr *packet_header, const unsigned char *packet_data) {
+void packet_handler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData) {
     pthread_mutex_lock(&mutex);
     Datagram temp;
+    unsigned long size = 0;
+    memset(temp.message, 0, sizeof(temp.message));
     unsigned long appLength;
     unsigned char *appData;
     EthernetHeader* eh;
     IPHeader *ih;
     UDPHeader *uh;
-    eh = (EthernetHeader *) packet_data;
-    ih = (IPHeader *) (packet_data + sizeof(EthernetHeader));
+    eh = (EthernetHeader *) packetData;
+    ih = (IPHeader *) (packetData + sizeof(EthernetHeader));
     uh = (UDPHeader *) ((unsigned char *) ih + ih->headerLength * 4);
     appLength = (unsigned long) (ntohs(uh->datagramLength) - 8);
     appData = (unsigned char *) uh + 8;
-
-    memcpy(&temp.message, packet_data, sizeof(temp.message));
-    printRawData((unsigned char *) temp.message, 512);
-    //memset(&temp, (unsigned int)packet_data, sizeof(Datagram));
+    if (sizeof(temp.message) > appLength) {
+        size = appLength;
+    } else {
+        size = sizeof(temp.message);
+    }
+    memcpy(&temp.message, packetData, size);
+    printRawData((unsigned char *) temp.message, size);
+    //memset(&temp, (unsigned int)packetData, sizeof(Datagram));
     // DEBUG INFO
     printEthernetHeader(eh);
     printIPHeader(ih);
