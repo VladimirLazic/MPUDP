@@ -9,13 +9,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SEGMENT_LENGTH 10
 /**
  * @struct  Segment
  * @brief Single segment
  * A single segment contains its data and its segment number
  */
-typedef struct segment_s {
+typedef struct segment
+{
     char *data; /**< Data of segment segment_s#data*/
     unsigned int segmentNumber; /** <ID of segment segment_s#segmentNumber*/
 } Segment;
@@ -25,12 +25,14 @@ typedef struct segment_s {
  * Information about opened file. How many segments it contains what are their standard lengths and
  * the length of the last segment because it can be less than standard lengths
  */
-typedef struct fileinfo_s {
-    char *filename;/**< Name of the file */
+typedef struct fileinfo
+{
+    char *fileName;/**< Name of the file */
     unsigned int numberOfSegments;/**<How many segments does the files have*/
     unsigned int lengthOfSegment;/**<How long are the standard segments*/
     unsigned int lengthOfLastSegment;/**<How long is the last segment*/
 } FileInfo;
+
 /**
  * @param path
  *  Absolute path to file
@@ -38,18 +40,21 @@ typedef struct fileinfo_s {
  *  Filename
  */
 char *ExtractFilename(const char *path);
+
 /**
  * @param info
  *  Frees filename
  */
 void EraseFileInfo(FileInfo info);
+
 /**
  * @param segmentInfo
  *  Erase dynamic segment info
  * @param numberOfSegments
  *  How much to erase
  */
-void EraseSegmentInfo(Segment** segmentInfo, unsigned int numberOfSegments);
+void EraseSegmentInfo(Segment **segmentInfo, unsigned int numberOfSegments);
+
 /**
  * @param N
  *  Length of segments
@@ -60,40 +65,46 @@ void EraseSegmentInfo(Segment** segmentInfo, unsigned int numberOfSegments);
  * @return
  *  Return file info
  */
-FileInfo OpenAndDivide(unsigned int N, const char* path, Segment **segment);
+FileInfo OpenAndDivide(unsigned int N, const char *path, Segment **segment);
+
 /**
  * @param info
  *  Prints file info
  * @param segment
  *  Prints segment data
  */
-void PrintInfo(FileInfo info, Segment* segment);
+void PrintInfo(FileInfo info, Segment *segment);
+
 /**
  * @param info
  *  File Info
  * @param segment
  *  Segment array
  */
-void Reconstruct(FileInfo info, Segment* segment);
+void Reconstruct(FileInfo info, Segment *segment);
+
 /**
  * @param A
  *  Array of segments
  * @param X
  *  File info
  */
-void SortSegments(Segment* A, FileInfo X);
+void SortSegments(Segment *A, FileInfo X);
+
 /**
  * @param data
  *  Data in buffer to clear
  * @param N
  *  How much to clear
  */
-void ClearBuffer(char* data, unsigned int N);
+void ClearBuffer(char *data, unsigned int N);
+
 /**
  * @param segment
  *  Address of segment array
  * @param info
  *  FileInfo object
  */
-void EraseData(Segment** segment, FileInfo info);
+void EraseData(Segment **segment, FileInfo info);
+
 #endif

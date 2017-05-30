@@ -18,30 +18,32 @@
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS
 #else
+
 #include <time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
 #endif
 
 #include <stdbool.h>
 #include <pthread.h>
 #include <pcap.h>
+#include <segmenter.h>
 
 #define DEFAULT_PORT   27015
-#define DEFAULT_FILE_LEN 1024
-#define DEFAULT_MESSAGE_LEN 510
-#define BUF_LEN 512
 /**
  * @struct EthernetHeader
  * @brief
  *  Ethernet header with destination/source address and type of next layer
  *
  */
-typedef struct ethernet_header{
+#pragma pack(1)
+typedef struct ethernet_header
+{
     unsigned char dstAddress[6];/**<Destination address*/
     unsigned char srcAddress[6];/**<Source address*/
     unsigned short type;/**<Type of next layer*/
-}EthernetHeader;
+} EthernetHeader;
 /**
  * @struct IPHeader
  * @brief
@@ -49,7 +51,9 @@ typedef struct ethernet_header{
  *  fragment offset, Time to live,
  *  next protocol, checksum, src/dst address and option + padding
  */
-typedef struct ip_header{
+#pragma pack(1)
+typedef struct ip_header
+{
     unsigned char headerLength :4;/**<Internet header length (4bits)*/
     unsigned char version :4;/**<Version (4b)*/
     unsigned char tos;/**<Type of Service  (8b)*/
@@ -59,14 +63,11 @@ typedef struct ip_header{
     unsigned short fragmentOffset :13;/**<Fragment offset (13b)*/
     unsigned char ttl;/**<Time To Live (8b)*/
     unsigned char nextProtocol;/**<Protocol of next layer (8b)*/
-    unsigned short checkSum;/**<Header checksum (16b)*/
+    unsigned short checkSum :16;/**<Header checksum (16b)*/
     unsigned char srcAddr[4];/**<Source address (4B)*/
     unsigned char dstAddr[4];/**<Destination address (4B)*/
     unsigned int optionPadding;/**<Internet header length (Vary)*/
-    /**
-     * + variable part of the header
-     */
-}IPHeader;
+} IPHeader;
 
 /**
  * @struct UDPHeader
@@ -74,23 +75,26 @@ typedef struct ip_header{
  *  User Datagram Protocol header structure
  *      Contains src/dst port length of datagram and UDP checksum
  */
-typedef struct udp_header{
+#pragma pack(1)
+typedef struct udp_header
+{
     unsigned short srcPort;/**<Source port (16b)*/
     unsigned short dstPort;/**<Destination port (16b)*/
     unsigned short datagramLength;/**<Total Length (16b)*/
     unsigned short checkSum;/**<Header Checksum (16b)*/
-}UDPHeader;
+} UDPHeader;
 /**
  * @struct Datagram
  * @brief
  *  datagram data
  */
+#pragma pack(1)
 typedef struct datagram
 {
-    char message[DEFAULT_MESSAGE_LEN];
+    char message[1024];
     int datagramId;
     bool sent;
-}Datagram;
+} Datagram;
 
 /**
  * @brief
@@ -98,7 +102,7 @@ typedef struct datagram
  * @param dev
  *  Device descriptor
  */
-void printInterface(pcap_if_t *dev);
+void PrintInterface(pcap_if_t *dev);
 
 /**
  * @brief
@@ -108,7 +112,7 @@ void printInterface(pcap_if_t *dev);
  * @return
  *  Human readable text
  */
-char *convertSockaddrToString(struct sockaddr *address);
+char *ConvertSockaddrToString(struct sockaddr *address);
 
 /**
  * @brief
@@ -118,7 +122,7 @@ char *convertSockaddrToString(struct sockaddr *address);
  * @param data_length
  *  How much to print
  */
-void printRawData(unsigned char *data, long data_length);
+void PrintRawData(unsigned char *data, long data_length);
 
 /**
  * @brief
@@ -126,7 +130,7 @@ void printRawData(unsigned char *data, long data_length);
  * @param eh
  *  EthernetHeader to print
  */
-void printEthernetHeader(EthernetHeader *eh);
+void PrintEthernetHeader(EthernetHeader *eh);
 
 /**
  * @brief
@@ -134,7 +138,7 @@ void printEthernetHeader(EthernetHeader *eh);
  * @param ih
  *  IP header to print
  */
-void printIPHeader(IPHeader *ih);
+void PrintIPHeader(IPHeader *ih);
 
 /**
  * @brief
@@ -142,7 +146,7 @@ void printIPHeader(IPHeader *ih);
  * @param uh
  *  UDP header to print
  */
-void printUDPHeader(UDPHeader *uh);
+void PrintUDPHeader(UDPHeader *uh);
 
 /**
  * @brief
@@ -152,6 +156,43 @@ void printUDPHeader(UDPHeader *uh);
  * @param data_length
  *  How much to print
  */
-void printAppData(unsigned char *data, long data_length);
+void PrintAppData(unsigned char *data, long data_length);
+
+/**
+ * @brief
+ *  Fits 2 chars into a short
+ * @param X
+ *  Bigger half of the short
+ * @param Y
+ *  Lower half of the short
+ * @return
+ *  Returns the short
+ */
+unsigned short BytesTo16(unsigned char X, unsigned char Y);
+
+
+/**
+ *  @brief
+ *  Calculates checksum for UDP header
+ * @param udp
+ *  UDP Header
+ * @param ip
+ *  IP Header
+ * @param data
+ *  Raw data
+ * @return
+ *  Checksum
+ */
+unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, Datagram data);
+
+/**
+ * @brief
+ *  Calculates checksum for IP header
+ * @param ip
+ *  IP Header
+ * @return
+ *  Checksum
+ */
+unsigned short IPChecksum(unsigned char *ip);
 
 #endif

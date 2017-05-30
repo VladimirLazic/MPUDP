@@ -1,46 +1,61 @@
 #include <segmenter.h>
-char *ExtractFilename(const char *path) {
+
+char *ExtractFilename(const char *path)
+{
     char *temp = NULL;
     int i = 0;
     int j = 0;
     int k = 0;
-    while (path[i] != 0) {
+    while (path[i] != 0)
+    {
         i++;
     }
     j = i - 1;
-    while (path[j] != '/' && j >= 0) {
+    while (path[j] != '/' && j >= 0)
+    {
         j--;
     }
     j++;
 
-    temp = (char *)malloc((i - j + 1) * sizeof(char));
-    if (temp == NULL) {
+    temp = (char *) malloc((i - j + 1) * sizeof(char));
+    if (temp == NULL)
+    {
         printf("Couldn't allocate memory for storing filename");
         exit(EXIT_FAILURE);
     }
-    while (j != i) {
+    while (j != i)
+    {
         temp[k] = path[j];
         j++;
         k++;
     }
     return temp;
 }
-void ClearBuffer(char *data, unsigned int N) {
+
+void ClearBuffer(char *data, unsigned int N)
+{
     unsigned int i;
-    for (i = 0; i < N; i++) {
+    for (i = 0; i < N; i++)
+    {
         data[i] = 0;
     }
 }
-void EraseFileInfo(FileInfo info) { free(info.filename); }
-void EraseSegmentInfo(Segment **segmentInfo, unsigned int numberOfSegments) {
+
+void EraseFileInfo(FileInfo info) { free(info.fileName); }
+
+void EraseSegmentInfo(Segment **segmentInfo, unsigned int numberOfSegments)
+{
     unsigned int i = 0;
-    for (i = 0; i < numberOfSegments; i++) {
+    for (i = 0; i < numberOfSegments; i++)
+    {
         free((*segmentInfo)[i].data);
     }
     free(*segmentInfo);
 }
+
 FileInfo OpenAndDivide(unsigned int N, const char *path,
-                       Segment **segment) {
+                       Segment **segment)
+{
 
     unsigned int sizeOfFile = 0;
     unsigned int sizeOfSegment = 0;
@@ -52,34 +67,39 @@ FileInfo OpenAndDivide(unsigned int N, const char *path,
     FileInfo ret;
 
     source = fopen(path, "rb");
-    if (source == NULL) {
+    if (source == NULL)
+    {
         printf("Cant open %s\n", path);
         exit(EXIT_FAILURE);
     }
     rewind(source);
     filename = ExtractFilename(path);
-    ret.filename = filename;
+    ret.fileName = filename;
     ret.lengthOfSegment = N;
     ClearBuffer(stream, N + 1);
-    do {
-        byte = fgetc(source);
+    do
+    {
+        byte = (char) fgetc(source);
         if (feof(source))
             break;
         sizeOfFile++;
         stream[sizeOfSegment] = byte;
 
-        if (N - 1 - sizeOfSegment == 0) {
+        if (N - 1 - sizeOfSegment == 0)
+        {
             *segment =
-                    (Segment *)realloc(*segment, sizeof(Segment) * numberOfSegments);
-            if (*segment == NULL) {
+                    (Segment *) realloc(*segment, sizeof(Segment) * numberOfSegments);
+            if (*segment == NULL)
+            {
                 puts("Not enough memory for a segment");
                 exit(EXIT_FAILURE);
             }
 
             (*segment)[numberOfSegments - 1].data =
-                    (char *)malloc(ret.lengthOfSegment + 1);
+                    (char *) malloc(ret.lengthOfSegment + 1);
 
-            if ((*segment)[numberOfSegments - 1].data == NULL) {
+            if ((*segment)[numberOfSegments - 1].data == NULL)
+            {
                 puts("Not enough memory for allocating segment data");
                 exit(EXIT_FAILURE);
             }
@@ -94,18 +114,21 @@ FileInfo OpenAndDivide(unsigned int N, const char *path,
         } else
             sizeOfSegment++;
     } while (1);
-    if (sizeOfFile == 0) {
+    if (sizeOfFile == 0)
+    {
         printf("Empty file or Premature EOF... aborting\n");
         exit(EXIT_FAILURE);
     }
-    *segment = (Segment *)realloc(*segment, sizeof(Segment) * numberOfSegments);
-    if (*segment == NULL) {
+    *segment = (Segment *) realloc(*segment, sizeof(Segment) * numberOfSegments);
+    if (*segment == NULL)
+    {
         puts("Not enough memory for allocating a segment");
         exit(EXIT_FAILURE);
     }
     (*segment)[numberOfSegments - 1].data =
-            (char *)malloc(ret.lengthOfSegment + 1);
-    if ((*segment)[numberOfSegments - 1].data == NULL) {
+            (char *) malloc(ret.lengthOfSegment + 1);
+    if ((*segment)[numberOfSegments - 1].data == NULL)
+    {
         puts("Not enough memory for allocating segment data");
         exit(EXIT_FAILURE);
     }
@@ -117,58 +140,67 @@ FileInfo OpenAndDivide(unsigned int N, const char *path,
     fclose(source);
     return ret;
 }
-void PrintInfo(FileInfo info, Segment* segment) {
+
+void PrintInfo(FileInfo info, Segment *segment)
+{
     printf("\nPRINTING FILE INFORMATION\n\n");
-    printf("FILENAME:                     %s\n", info.filename);
+    printf("FILENAME:                     %s\n", info.fileName);
     printf("NUMBER OF SEGMENTS            %u\n", info.numberOfSegments);
     printf("LENGTH OF A SEGMENT:          %u\n", info.lengthOfSegment);
     printf("LENGTH OF THE LAST SEGMENT:   %u\n\n", info.lengthOfLastSegment);
 
     printf("\nPRINTING SEGMENTS INFORMATION\n\n");
     unsigned int i = 0;
-    for (i = 0; i < info.numberOfSegments; i++) {
+    for (i = 0; i < info.numberOfSegments; i++)
+    {
         printf("SEGMENT NUMBER:                     %u\n",
                segment[i].segmentNumber);
         printf("DATA OF SEGMENT:                    %s\n\n", segment[i].data);
     }
 }
 
-void Reconstruct(FileInfo info, Segment segment[]) {
-    FILE *dest = fopen(info.filename, "wb");
+void Reconstruct(FileInfo info, Segment segment[])
+{
+    FILE *dest = fopen(info.fileName, "wb");
     unsigned int i = 0;
-    if (dest == NULL) {
-        printf("Can't make file %s\n", info.filename);
+    if (dest == NULL)
+    {
+        printf("Can't make file %s\n", info.fileName);
         exit(EXIT_FAILURE);
     }
     SortSegments(segment, info);
     i = 0;
-    while (i < info.numberOfSegments - 1) {
+    while (i < info.numberOfSegments - 1)
+    {
         fwrite(segment[i].data, sizeof(char), info.lengthOfSegment, dest);
         i++;
     }
 
     i = 0;
-    while (i != info.lengthOfLastSegment) {
+    while (i != info.lengthOfLastSegment)
+    {
         fputc(segment[info.numberOfSegments - 1].data[i], dest);
         i++;
     }
     fclose(dest);
 }
 
-void SortSegments(Segment *A, FileInfo X) {
+void SortSegments(Segment *A, FileInfo X)
+{
     unsigned int i = 0;
-    unsigned int j = i;
+    unsigned int j;
     Segment temp;
     for (i = 0; i < X.numberOfSegments - 1; i++)
         for (j = i; j < X.numberOfSegments; j++)
-            if (A[j].segmentNumber < A[i].segmentNumber) {
+            if (A[j].segmentNumber < A[i].segmentNumber)
+            {
                 temp = A[j];
                 A[j] = A[i];
                 A[i] = temp;
             }
 }
 
-void EraseData(Segment** segment, FileInfo info)
+void EraseData(Segment **segment, FileInfo info)
 {
     EraseSegmentInfo(segment, info.numberOfSegments);
     EraseFileInfo(info);
