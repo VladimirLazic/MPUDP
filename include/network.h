@@ -91,9 +91,9 @@ typedef struct udp_header
 #pragma pack(1)
 typedef struct datagram
 {
-    char message[1024];
+    unsigned char *data;
     int datagramId;
-    bool sent;
+    bool sentCorrectly;
 } Datagram;
 
 /**
@@ -183,7 +183,7 @@ unsigned short BytesTo16(unsigned char X, unsigned char Y);
  * @return
  *  Checksum
  */
-unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, Datagram data);
+unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, Datagram data, unsigned short len);
 
 /**
  * @brief

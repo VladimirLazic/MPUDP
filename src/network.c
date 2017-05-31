@@ -114,18 +114,18 @@ unsigned short BytesTo16(unsigned char X, unsigned char Y)
     return Tmp;
 }
 
-unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, Datagram data)
+unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, Datagram data, unsigned short len)
 {
     unsigned short CheckSum = 0;
 
 ///length of pseudo_header = Data length + 8 bytes UDP header + Two 4 byte IP's + 1 byte protocol
-    unsigned short pseudo_length = sizeof(Datagram) + 8 + 9;
+    unsigned short pseudo_length = len + (unsigned short) 8 + (unsigned short) 9;
 
 ///If bytes are not an even number, add an extra.
     pseudo_length += pseudo_length % 2;
 
 ///This is just UDP + Data length.
-    unsigned short length = sizeof(Datagram) + 8;
+    unsigned short length = len + (unsigned short) 8;
 
 ///Init
     unsigned char *pseudo_header = (unsigned char *) malloc(pseudo_length * sizeof(unsigned char));

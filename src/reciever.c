@@ -119,7 +119,7 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
     pthread_mutex_lock(&mutex);
     Datagram temp;
     unsigned long size = 0;
-    memset(temp.message, 0, sizeof(temp.message));
+    memset(temp.data, 0, sizeof(temp.data));
     unsigned long appLength;
     unsigned char *appData;
     EthernetHeader *eh;
@@ -130,19 +130,19 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
     uh = (UDPHeader *) ((unsigned char *) ih + ih->headerLength * 4);
     appLength = (unsigned long) (ntohs(uh->datagramLength) - 8);
     appData = (unsigned char *) uh + 8;
-    if (sizeof(temp.message) > appLength)
+    if (sizeof(temp.data) > appLength)
     {
         size = appLength;
     } else
     {
-        size = sizeof(temp.message);
+        size = sizeof(temp.data);
     }
-    memcpy(&temp.message, appData, size);
+    memcpy(&temp.data, appData, size);
     PrintEthernetHeader(eh);
     PrintIPHeader(ih);
     PrintUDPHeader(uh);
     PrintAppData(appData, appLength);
-    PrintRawData((unsigned char *) temp.message, size);
+    PrintRawData((unsigned char *) temp.data, size);
     pthread_mutex_unlock(&mutex);
     getchar();
 }
