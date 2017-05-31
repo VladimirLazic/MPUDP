@@ -1,8 +1,7 @@
 #include <segmenter.h>
-#include <stdbool.h>
 #include <network.h>
 
-Datagram *datagrams;
+UserHeader *headers;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 FileInfo file;
 Segment *segment = NULL;
@@ -11,9 +10,11 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packet_header
 
 void *DeviceThreadFunction(void *params);
 
-void create_packet_header(unsigned char *data, Datagram datagram, unsigned short dataLen);
+void create_packet_header(unsigned char *data, UserHeader datagram);
 
 void InitDatagram(FileInfo fileinfo, Segment *pSegment);
+
+void PrintDatagram(unsigned len);
 
 int main(int argc, char **argv)
 {
@@ -30,13 +31,20 @@ int main(int argc, char **argv)
     }
     file = OpenAndDivide((unsigned) atoi(argv[2]), argv[1],
                          &segment);
+    if (file.lengthOfSegment > DATA_LEN)
+    {
+        printf("File is bigger than the length of the data field\n");
+        exit(-2);
+    }
     printf("Forming datagrams\n");
     InitDatagram(file, segment);
+    PrintDatagram(headers[0].totalPackets);
     if (pcap_findalldevs(&devices, errBuff) == -1)
     {
         printf("Error finding devices: %s\n", errBuff);
         exit(-1);
     }
+
     for (device = devices; device; device = device->next)
     {
         ///<We want all network interfaces that aren't loop back and aren't "any" (for linux any captures usb and lo)
@@ -53,6 +61,7 @@ int main(int argc, char **argv)
     }
     device_threads = malloc(sizeof(pthread_t) * workingInterfaces);
     workingInterfaces = 0;
+
     for (device = devices; device; device = device->next)
     {
         if (device->flags & PCAP_IF_LOOPBACK)
@@ -69,6 +78,7 @@ int main(int argc, char **argv)
     {
         pthread_join(device_threads[thread], NULL);
     }
+
     EraseData(&segment, file);
     free(device_threads);
     pcap_freealldevs(devices);
@@ -79,20 +89,23 @@ int main(int argc, char **argv)
 void InitDatagram(FileInfo fileinfo, Segment *segment)
 {
     int i = 0;
-    datagrams = (Datagram *) malloc(fileinfo.numberOfSegments * sizeof(Datagram));
+    headers = (UserHeader *) malloc(fileinfo.numberOfSegments * sizeof(UserHeader));
     for (i = 0; i < fileinfo.numberOfSegments; i++)
     {
-        datagrams[i].datagramId = segment[i].segmentNumber;
-        datagrams[i].sentCorrectly = false;
+        headers[i].identification = segment[i].segmentNumber;
+        headers[i].totalPackets = fileinfo.numberOfSegments;
+        headers[i].signalization = SIGNAL;
+        headers[i].ack = 0;
         if (i != fileinfo.numberOfSegments - 1)
         {
-            datagrams[i].data = (unsigned char *) malloc(fileinfo.lengthOfSegment);
-            memcpy(datagrams[i].data, segment[i].data, fileinfo.lengthOfSegment);
+            headers[i].length = fileinfo.lengthOfSegment;
         } else
         {
-            datagrams[i].data = (unsigned char *) malloc(fileinfo.lengthOfLastSegment);
-            memcpy(datagrams[i].data, segment[i].data, fileinfo.lengthOfLastSegment);
+            headers[i].length = fileinfo.lengthOfLastSegment;
         }
+        headers[i].data = (unsigned char *) malloc(headers[i].length);
+        memset(headers[i].data, 0, headers[i].length);
+        memcpy(headers[i].data, segment[i].data, headers[i].length);
     }
 }
 
@@ -102,7 +115,7 @@ void *DeviceThreadFunction(void *device)
     pcap_if_t *thread_device = (pcap_if_t *) device;
     pcap_t *device_handle;
     char errBuffer[PCAP_ERRBUF_SIZE];
-    unsigned char packet[sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(Datagram)];
+    unsigned char packet[sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(UserHeader)];
     int i = 0;
     if ((device_handle = pcap_open_live(thread_device->name,
                                         65536,
@@ -114,52 +127,33 @@ void *DeviceThreadFunction(void *device)
         printf("\nUnable to open the adapter. %s\n%s\n", thread_device->name, errBuffer);
         return NULL;
     }
-
-
     for (i = 0; i < file.numberOfSegments; i++)
     {
         pthread_mutex_lock(&mutex);
-        unsigned len = 0;
-        unsigned char *packet;
-        if (!datagrams[i].sentCorrectly)
+        create_packet_header(packet, headers[i]);
+        memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4), &headers[i],
+               sizeof(UserHeader) - 8);
+        memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4 + sizeof(UserHeader) - 8),
+               headers[i].data, headers[i].length);
+        PrintRawData(packet,
+                     sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4 + sizeof(UserHeader) - 8 +
+                     headers[i].length);
+        //Send a usp datagram
+        if (pcap_sendpacket(device_handle, packet,
+                            sizeof(EthernetHeader) + sizeof(IPHeader) - 4 + sizeof(UDPHeader) + sizeof(UserHeader) - 8 +
+                            headers[i].length) != 0)
         {
-            if (i != file.numberOfSegments - 1)
-            {
-                len = file.lengthOfSegment;
-            } else
-            {
-                len = file.lengthOfLastSegment - 1;
-            }
-            packet = (unsigned char *) malloc(
-                    sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(datagrams[i].datagramId) +
-                    len);
-            printf("%u\n", sizeof(datagrams[i].datagramId) + len);
-            create_packet_header(packet, datagrams[i], sizeof(datagrams[i].datagramId) + len);
-            memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader)), &(datagrams[i].datagramId),
-                   sizeof(datagrams[i].datagramId));
-            memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) +
-                    sizeof(datagrams[i].datagramId)), datagrams[i].data,
-                   len);
-            PrintRawData(packet, sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader));
-            //Send a usp datagram
-            if (pcap_sendpacket(device_handle, packet,
-                                sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) +
-                                sizeof(datagrams[i].datagramId) + len) != 0)
-            {
-                printf("Error sending packet id: %d\n", datagrams[i].datagramId);
-            } else
-            {
-                printf("Success sending packet id: %d by thread: %s\n", datagrams[i].datagramId, thread_device->name);
-                datagrams[i].sentCorrectly = true;
-            }
+            printf("Error sending packet id: %d\n", headers[i].identification);
+        } else
+        {
+            printf("Success sending packet id: %d by thread: %s\n", headers[i].identification, thread_device->name);
         }
-        free(packet);
         pthread_mutex_unlock(&mutex);
     }
     return NULL;
 }
 
-void create_packet_header(unsigned char *data, Datagram datagram, unsigned short dataLen)
+void create_packet_header(unsigned char *data, UserHeader header)
 {
     UDPHeader *udp_hdr = (UDPHeader *) malloc(sizeof(UDPHeader));
     IPHeader *ip_hdr = (IPHeader *) malloc(sizeof(IPHeader));
@@ -168,11 +162,11 @@ void create_packet_header(unsigned char *data, Datagram datagram, unsigned short
 
     //Initializing
     memset(udp_hdr, 0, sizeof(UDPHeader));
-    memset(ip_hdr, 0, sizeof(UDPHeader));
-    memset(eth_hdr, 0, sizeof(UDPHeader));
+    memset(ip_hdr, 0, sizeof(IPHeader));
+    memset(eth_hdr, 0, sizeof(EthernetHeader));
 
     //Creating a udp header
-    udp_hdr->datagramLength = htons(dataLen + sizeof(UDPHeader));
+    udp_hdr->datagramLength = htons(sizeof(UserHeader) - 8 + header.length + sizeof(UDPHeader));
     udp_hdr->srcPort = htons(DEFAULT_PORT);
     udp_hdr->dstPort = htons(DEFAULT_PORT);
 
@@ -192,12 +186,12 @@ void create_packet_header(unsigned char *data, Datagram datagram, unsigned short
     ip_hdr->headerLength = 20 / 4;
     ip_hdr->tos = 0;
     ip_hdr->ttl = 128;
-    ip_hdr->length = htons(sizeof(IPHeader) + dataLen + sizeof(UDPHeader));
+    ip_hdr->length = htons(sizeof(IPHeader) + sizeof(UserHeader) - 12 + header.length + sizeof(UDPHeader));
     ip_hdr->fragmentOffset = htons(0x800);
     memcpy(ip_helper, ip_hdr, 22);
 
     //Creating ip and udp headers
-    udp_hdr->checkSum = UDPCheckSum(udp_hdr, ip_hdr, datagram, dataLen);
+    udp_hdr->checkSum = UDPCheckSum(udp_hdr, ip_hdr, header);
     ip_hdr->checkSum = IPChecksum(ip_helper);
 
 
@@ -217,7 +211,6 @@ void create_packet_header(unsigned char *data, Datagram datagram, unsigned short
     eth_hdr->srcAddress[4] = 0x94;
     eth_hdr->srcAddress[5] = 0x0b;
     eth_hdr->type = htons(0x0800);
-
     memcpy(data, eth_hdr, sizeof(EthernetHeader));
     memcpy(data + sizeof(EthernetHeader), ip_hdr, sizeof(IPHeader));
     memcpy(data + sizeof(EthernetHeader) + sizeof(IPHeader) - 4, udp_hdr, sizeof(UDPHeader));
@@ -229,4 +222,28 @@ void create_packet_header(unsigned char *data, Datagram datagram, unsigned short
     free(udp_hdr);
     free(ip_hdr);
     free(eth_hdr);
+}
+
+void PrintDatagram(unsigned len)
+{
+    unsigned i = 0;
+    for (i = 0; i < len; i++)
+    {
+        unsigned j = 0;
+        printf("Packets: %u\nIdentification: %u\nLength: %u\nAcknowledge: %u\n Data:\n", headers[i].identification,
+               headers[i].totalPackets, headers[i].length, headers[i].ack);
+        for (j = 0; j < headers[i].length; j++)
+        {
+            if (!j % 8)
+            {
+                printf(" ");
+            }
+            if (!j % 16)
+            {
+                printf("\n");
+            }
+            printf("%c", headers[i].data[j]);
+        }
+    }
+    printf("\n");
 }

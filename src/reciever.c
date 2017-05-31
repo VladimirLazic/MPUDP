@@ -117,7 +117,7 @@ void *DeviceThreadFunction(void *device)
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData)
 {
     pthread_mutex_lock(&mutex);
-    Datagram temp;
+    UserHeader temp;
     unsigned long size = 0;
     memset(temp.data, 0, sizeof(temp.data));
     unsigned long appLength;

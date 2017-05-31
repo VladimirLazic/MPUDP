@@ -31,6 +31,11 @@
 #include <segmenter.h>
 
 #define DEFAULT_PORT   27015
+#define DATA_LEN 512
+#define PCAP_IF_LOOPBACK    0x00000001    /* interface is loopback */
+#define PCAP_IF_UP        0x00000002    /* interface is up */
+#define PCAP_IF_RUNNING        0x00000004    /* interface is running */
+#define SIGNAL 0x0f0f0f0f
 /**
  * @struct EthernetHeader
  * @brief
@@ -89,12 +94,15 @@ typedef struct udp_header
  *  datagram data
  */
 #pragma pack(1)
-typedef struct datagram
+typedef struct user_header
 {
+    unsigned signalization;
+    unsigned identification;
+    unsigned totalPackets;
+    unsigned length;
+    unsigned char ack;
     unsigned char *data;
-    int datagramId;
-    bool sentCorrectly;
-} Datagram;
+} UserHeader;
 
 /**
  * @brief
@@ -183,7 +191,7 @@ unsigned short BytesTo16(unsigned char X, unsigned char Y);
  * @return
  *  Checksum
  */
-unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, Datagram data, unsigned short len);
+unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, UserHeader header);
 
 /**
  * @brief
