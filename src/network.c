@@ -114,18 +114,18 @@ unsigned short BytesTo16(unsigned char X, unsigned char Y)
     return Tmp;
 }
 
-unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, UserHeader data)
+unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, BlitzHeader data)
 {
     unsigned short CheckSum = 0;
 
 ///length of pseudo_header = Data length + 8 bytes UDP header + Two 4 byte IP's + 1 byte protocol
-    unsigned short pseudo_length = sizeof(UserHeader) - 8 + data.length + 8 + 9;
+    unsigned short pseudo_length = sizeof(BlitzHeader) - 8 + data.length + 8 + 9;
 
 ///If bytes are not an even number, add an extra.
     pseudo_length += pseudo_length % 2;
 
 ///This is just UDP + Data length.
-    unsigned short length = sizeof(UserHeader) - 8 + data.length + 8;
+    unsigned short length = sizeof(BlitzHeader) - 8 + data.length + 8;
 
 ///Init
     unsigned char *pseudo_header = (unsigned char *) malloc(pseudo_length * sizeof(unsigned char));
@@ -155,8 +155,8 @@ unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, UserHeader data)
     memcpy(pseudo_header + 15, &(udp->dstPort), 2);
 
 
-    memcpy(pseudo_header + 17, &data, sizeof(UserHeader) - 8);
-    memcpy(pseudo_header + 17 + sizeof(UserHeader) - 8, data.data, data.length);
+    memcpy(pseudo_header + 17, &data, sizeof(BlitzHeader) - 8);
+    memcpy(pseudo_header + 17 + sizeof(BlitzHeader) - 8, data.data, data.length);
 
 
     for (int i = 0; i < pseudo_length; i += 2)
@@ -186,4 +186,105 @@ unsigned short IPChecksum(unsigned char *ip)
     }
     CheckSum = ~CheckSum;
     return htons(CheckSum);
+}
+
+void PrintDatagram(unsigned len)
+{
+    unsigned i = 0;
+    for (i = 0; i < len; i++)
+    {
+        unsigned j = 0;
+        printf("Packets: %u\nIdentification: %u\nLength: %u\nAcknowledge: %u\n Data:\n", headers[i].totalPackets,
+               headers[i].identification, headers[i].length, headers[i].ack);
+        for (j = 0; j < headers[i].length; j++)
+        {
+            if (!j % 8)
+            {
+                printf(" ");
+            }
+            if (!j % 16)
+            {
+                printf("\n");
+            }
+            printf("%c", headers[i].data[j]);
+        }
+    }
+    printf("\n");
+}
+
+void InitDatagram(FileInfo fileinfo, Segment *segment)
+{
+    int i = 0;
+    headers = (BlitzHeader *) malloc(fileinfo.numberOfSegments * sizeof(BlitzHeader));
+    for (i = 0; i < fileinfo.numberOfSegments; i++)
+    {
+        headers[i].identification = segment[i].segmentNumber;
+        headers[i].totalPackets = fileinfo.numberOfSegments;
+        headers[i].signalization = SIGNAL;
+        memset(headers[i].filename, 0, FILENAME_LEN);
+        memcpy(headers[i].filename, file.fileName, filenameLength);
+        headers[i].ack = 0;
+        if (i != fileinfo.numberOfSegments - 1)
+        {
+            headers[i].length = fileinfo.lengthOfSegment;
+        } else
+        {
+            headers[i].length = fileinfo.lengthOfLastSegment;
+        }
+        headers[i].data = (unsigned char *) malloc(headers[i].length);
+        memset(headers[i].data, 0, headers[i].length);
+        memcpy(headers[i].data, segment[i].data, headers[i].length);
+    }
+}
+
+void SetIP(unsigned char IP[4], char *IPStr)
+{
+    char *token;
+    unsigned char ipPart;
+    int i = 0;
+    token = strtok(IPStr, ".");
+    if (token == NULL)
+    {
+        printf("Bad IP\n");
+        exit(EXIT_FAILURE);
+    }
+    ipPart = (unsigned char) atoi(token);
+    IP[0] = ipPart;
+    for (i = 1; i < 4; i++)
+    {
+        token = strtok(NULL, ".");
+        if (token == NULL)
+        {
+            printf("Bad IP\n");
+            exit(EXIT_FAILURE);
+        }
+        ipPart = (unsigned char) atoi(token);
+        IP[i] = ipPart;
+    }
+}
+
+void SetMAC(unsigned char MAC[6], char *MACStr)
+{
+    char *token;
+    unsigned char macPart;
+    int i = 0;
+    token = strtok(MACStr, ":");
+    if (token == NULL)
+    {
+        printf("Bad MAC\n");
+        exit(EXIT_FAILURE);
+    }
+    macPart = (unsigned char) strtol(token, NULL, 16);
+    MAC[0] = macPart;
+    for (i = 1; i < 6; i++)
+    {
+        token = strtok(NULL, ":");
+        if (token == NULL)
+        {
+            printf("Bad MAC\n");
+            exit(EXIT_FAILURE);
+        }
+        macPart = (unsigned char) strtol(token, NULL, 16);
+        MAC[i] = macPart;
+    }
 }

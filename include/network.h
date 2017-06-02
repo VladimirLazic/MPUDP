@@ -22,7 +22,6 @@
 #include <time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
 #endif
 
 #include <stdbool.h>
@@ -31,11 +30,12 @@
 #include <segmenter.h>
 
 #define DEFAULT_PORT   27015
-#define DATA_LEN 512
 #define PCAP_IF_LOOPBACK    0x00000001    /* interface is loopback */
 #define PCAP_IF_UP        0x00000002    /* interface is up */
 #define PCAP_IF_RUNNING        0x00000004    /* interface is running */
-#define SIGNAL 0x0f0f0f0f
+#define SIGNAL 0x555555555555556
+#define FILENAME_LEN 30
+#define MTU 1500
 /**
  * @struct EthernetHeader
  * @brief
@@ -61,17 +61,17 @@ typedef struct ip_header
 {
     unsigned char headerLength :4;/**<Internet header length (4bits)*/
     unsigned char version :4;/**<Version (4b)*/
-    unsigned char tos;/**<Type of Service  (8b)*/
-    unsigned short length;/**<Total length (16b)*/
-    unsigned short identification;/**<Identification (16b)*/
+    unsigned char tos;/**<Type of Service  (1B)*/
+    unsigned short length;/**<Total length (2B)*/
+    unsigned short identification;/**<Identification (2B)*/
     unsigned short fragmentFlags :3;/**<Flags (3b)*/
     unsigned short fragmentOffset :13;/**<Fragment offset (13b)*/
-    unsigned char ttl;/**<Time To Live (8b)*/
-    unsigned char nextProtocol;/**<Protocol of next layer (8b)*/
-    unsigned short checkSum :16;/**<Header checksum (16b)*/
+    unsigned char ttl;/**<Time To Live (2B)*/
+    unsigned char nextProtocol;/**<Protocol of next layer (1B)*/
+    unsigned short checkSum :16;/**<Header checksum (2B)*/
     unsigned char srcAddr[4];/**<Source address (4B)*/
     unsigned char dstAddr[4];/**<Destination address (4B)*/
-    unsigned int optionPadding;/**<Internet header length (Vary)*/
+    unsigned int optionPadding;/**<Internet header length (Vary -4B {We won't use option Padding})*/
 } IPHeader;
 
 /**
@@ -94,15 +94,20 @@ typedef struct udp_header
  *  datagram data
  */
 #pragma pack(1)
-typedef struct user_header
+typedef struct blitz
 {
-    unsigned signalization;
+    unsigned long signalization;
     unsigned identification;
     unsigned totalPackets;
     unsigned length;
     unsigned char ack;
+    unsigned char filename[FILENAME_LEN];
     unsigned char *data;
-} UserHeader;
+} BlitzHeader;
+
+extern FileInfo file;
+extern BlitzHeader *headers;
+extern unsigned filenameLength;
 
 /**
  * @brief
@@ -191,7 +196,7 @@ unsigned short BytesTo16(unsigned char X, unsigned char Y);
  * @return
  *  Checksum
  */
-unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, UserHeader header);
+unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, BlitzHeader header);
 
 /**
  * @brief
@@ -203,4 +208,25 @@ unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, UserHeader header);
  */
 unsigned short IPChecksum(unsigned char *ip);
 
+/**
+ * @brief
+ *  Prints datagram info
+ * @param len
+ *  Number of datagrams
+ */
+void PrintDatagram(unsigned len);
+
+/**
+ * @brief
+ *  Initializes a datagram
+ * @param fileinfo
+ *  File Information structure
+ * @param pSegment
+ *  Array of segments
+ */
+void InitDatagram(FileInfo fileinfo, Segment *segment);
+
+void SetIP(unsigned char IP[4], char *IPStr);
+
+void SetMAC(unsigned char MAC[6], char *MACStr);
 #endif

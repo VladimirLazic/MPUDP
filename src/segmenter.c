@@ -205,3 +205,13 @@ void EraseData(Segment **segment, FileInfo info)
     EraseSegmentInfo(segment, info.numberOfSegments);
     EraseFileInfo(info);
 }
+
+unsigned ExtractFilenameLength(FileInfo info)
+{
+    unsigned i = 0;
+    while (info.fileName[i] != '\0')
+    {
+        i++;
+    }
+    return i;
+}

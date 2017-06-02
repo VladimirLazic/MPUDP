@@ -1,7 +1,10 @@
-#include <segmenter.h>
 #include <network.h>
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+BlitzHeader *headers;
+FileInfo file;
+unsigned filenameLength = 0;
 
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData);
 
@@ -117,32 +120,43 @@ void *DeviceThreadFunction(void *device)
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData)
 {
     pthread_mutex_lock(&mutex);
-    UserHeader temp;
+    BlitzHeader temp;
     unsigned long size = 0;
-    memset(temp.data, 0, sizeof(temp.data));
     unsigned long appLength;
     unsigned char *appData;
     EthernetHeader *eh;
     IPHeader *ih;
-    UDPHeader *uh;
+    UDPHeader *udph;
     eh = (EthernetHeader *) packetData;
     ih = (IPHeader *) (packetData + sizeof(EthernetHeader));
-    uh = (UDPHeader *) ((unsigned char *) ih + ih->headerLength * 4);
-    appLength = (unsigned long) (ntohs(uh->datagramLength) - 8);
-    appData = (unsigned char *) uh + 8;
-    if (sizeof(temp.data) > appLength)
+    udph = (UDPHeader *) ((unsigned char *) ih + ih->headerLength * 4);
+    appLength = (unsigned long) (ntohs(udph->datagramLength) - 8);
+    appData = (unsigned char *) udph + 8;
+
+    if (appLength > sizeof(BlitzHeader) - 8)
     {
-        size = appLength;
-    } else
-    {
-        size = sizeof(temp.data);
+        memcpy(&temp, appData, sizeof(BlitzHeader) - 8);
+        if (temp.signalization == SIGNAL)
+        {
+            printf("\n___________________________________________\n");
+            printf("\tBlitz detected\n");
+            printf("-------------------------------------------\n");
+            printf("%u.%u.%u.%u from %u.%u.%u.%u", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
+                   ih->srcAddr[0], ih->srcAddr[1], ih->srcAddr[2], ih->srcAddr[3]);
+            printf("got packet %u ", temp.identification);
+            printf("of %u\n", temp.totalPackets);
+            printf("File: %s\n", temp.filename);
+            temp.data = (unsigned char *) malloc(temp.length + 1);
+            memset(temp.data, 0, temp.length + 1);
+            memcpy(temp.data, appData + sizeof(BlitzHeader) - 8, temp.length);
+            printf("%s\n", temp.data);
+            /*
+            PrintEthernetHeader(eh);
+            PrintIPHeader(ih);
+            PrintUDPHeader(udph);
+            PrintRawData(temp.data, size);
+            */
+        }
     }
-    memcpy(&temp.data, appData, size);
-    PrintEthernetHeader(eh);
-    PrintIPHeader(ih);
-    PrintUDPHeader(uh);
-    PrintAppData(appData, appLength);
-    PrintRawData((unsigned char *) temp.data, size);
     pthread_mutex_unlock(&mutex);
-    getchar();
 }

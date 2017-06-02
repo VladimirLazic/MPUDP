@@ -107,4 +107,13 @@ void ClearBuffer(char *data, unsigned int N);
  */
 void EraseData(Segment **segment, FileInfo info);
 
+/**
+ * @brief
+ *  Extracts how long the filename is
+ * @param info
+ *  File to extract length
+ * @return
+ *  Returns how long the name is
+ */
+unsigned ExtractFilenameLength(FileInfo info);
 #endif
