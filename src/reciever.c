@@ -5,11 +5,15 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 BlitzHeader *headers;
 FileInfo file;
 unsigned filenameLength = 0;
+unsigned char currentPacket = 1;
+unsigned char dstIP[4];
+unsigned char srcMAC[6];
 
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData);
 
 void *DeviceThreadFunction(void *params);
 
+void CreatePacketHeader(unsigned char *data, BlitzHeader header, pcap_if_t *device);
 int main()
 {
     pcap_if_t *devices;
@@ -68,11 +72,12 @@ void *DeviceThreadFunction(void *device)
 {
     pcap_if_t *threadDevice = (pcap_if_t *) device;
     pcap_t *deviceHandle;
+    BlitzHeader response;
     char errBuffer[PCAP_ERRBUF_SIZE];
     struct bpf_program fcode;
     char filterExpr[] = "ip and udp";
     unsigned int netmask = 0;
-
+    unsigned int i = 0;
 #ifdef _WIN32
     if (threadDevice->addresses != NULL)
     netmask = ((struct sockaddr_in *)(threadDevice->addresses->netmask))->sin_addr.S_un.S_addr;
@@ -110,8 +115,72 @@ void *DeviceThreadFunction(void *device)
         return NULL;
     }
 
-    pcap_loop(deviceHandle, 0, PacketHandler, NULL);
 
+    while(currentPacket == 1)
+    {
+        pthread_mutex_lock(&mutex);
+        pcap_loop(deviceHandle, 1, PacketHandler, NULL);
+        pthread_mutex_unlock(&mutex);
+    }
+    ///Response init
+    pthread_mutex_lock(&mutex);
+    memset(response.filename,0,FILENAME_LEN);
+    memcpy(response.filename, "RESPONSE", 8);
+    response.totalPackets = headers[0].totalPackets;
+    response.length = 0;///No data attached
+    response.identification = headers[0].identification;
+    response.signalization = SIGNAL;
+    response.ack =(unsigned char)(currentPacket - 1);
+    unsigned char *packet = (unsigned char*) malloc(sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) - 12);
+
+    CreatePacketHeader(packet, response, threadDevice);
+
+    memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4), &response,
+           sizeof(BlitzHeader) - 8);
+    ///Send UDP datagram
+    if (pcap_sendpacket(deviceHandle, packet,
+                        sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) - 12) != 0)
+    {
+        printf("Error sending response id: %d\n", response.identification);
+    } else
+    {
+        printf("Success sending response id: %d by thread: %s\n", response.identification, threadDevice->name);
+    }
+    pthread_mutex_unlock(&mutex);
+    MySleep(1000);
+    //SEND ACK
+    pthread_mutex_lock(&mutex);
+    i = currentPacket;
+    pthread_mutex_unlock(&mutex);
+    while(currentPacket <= headers[0].totalPackets)
+    {
+        while(currentPacket == i)
+        {
+            pthread_mutex_lock(&mutex);
+            pcap_loop(deviceHandle, 1, PacketHandler, NULL);
+            pthread_mutex_unlock(&mutex);
+        }
+        pthread_mutex_lock(&mutex);
+        response.identification = headers[i-1].identification;
+        response.ack =(unsigned char)(currentPacket - 1);
+        packet = (unsigned char*) malloc(sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) - 12);
+        CreatePacketHeader(packet, response, threadDevice);
+        memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4), &response,
+               sizeof(BlitzHeader) - 8);
+        if (pcap_sendpacket(deviceHandle, packet,
+                            sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) - 12) != 0)
+        {
+            printf("Error sending packet id: %d\n", response.identification);
+        } else
+        {
+            printf("Success sending packet id: %d by thread: %s\n", response.identification, threadDevice->name);
+        }
+        pthread_mutex_unlock(&mutex);
+        MySleep(1000);
+        pthread_mutex_lock(&mutex);
+        i = currentPacket;
+        pthread_mutex_unlock(&mutex);
+    }
     return NULL;
 }
 
@@ -124,7 +193,6 @@ void *DeviceThreadFunction(void *device)
 
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData)
 {
-    pthread_mutex_lock(&mutex);
     BlitzHeader temp;
     unsigned long size = 0;
     unsigned long appLength;
@@ -143,25 +211,133 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
         memcpy(&temp, appData, sizeof(BlitzHeader) - 8);
         if (temp.signalization == SIGNAL)
         {
-            printf("\n___________________________________________\n");
-            printf("\tBlitz detected\n");
-            printf("-------------------------------------------\n");
-            printf("%u.%u.%u.%u from %u.%u.%u.%u", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
-                   ih->srcAddr[0], ih->srcAddr[1], ih->srcAddr[2], ih->srcAddr[3]);
-            printf("got packet %u ", temp.identification);
-            printf("of %u\n", temp.totalPackets);
-            printf("File: %s\n", temp.filename);
-            temp.data = (unsigned char *) malloc(temp.length + 1);
-            memset(temp.data, 0, temp.length + 1);
-            memcpy(temp.data, appData + sizeof(BlitzHeader) - 8, temp.length);
-            printf("%s\n", temp.data);
-            /*
-            PrintEthernetHeader(eh);
-            PrintIPHeader(ih);
-            PrintUDPHeader(udph);
-            PrintRawData(temp.data, size);
-            */
+            if (temp.identification == currentPacket && currentPacket == 1)
+            {
+                headers = (BlitzHeader*)malloc(sizeof(BlitzHeader)*temp.totalPackets);
+                memcpy(&headers[0], appData, sizeof(BlitzHeader)-8);
+                headers[0].data = (unsigned char *) malloc(temp.length + 1);
+                memset(headers[0].data,  0, temp.length + 1);
+                memcpy(headers[0].data, appData + sizeof(BlitzHeader) - 8, temp.length);
+                printf("\n___________________________________________\n");
+                printf("\tBlitz detected\n");
+                printf("-------------------------------------------\n");
+                printf("%u.%u.%u.%u from %u.%u.%u.%u", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
+                       ih->srcAddr[0], ih->srcAddr[1], ih->srcAddr[2], ih->srcAddr[3]);
+                dstIP[0] = ih->srcAddr[0];
+                dstIP[1] = ih->srcAddr[1];
+                dstIP[2] = ih->srcAddr[2];
+                dstIP[3] = ih->srcAddr[3];
+                srcMAC[0] = eh->dstAddress[0];
+                srcMAC[1] = eh->dstAddress[1];
+                srcMAC[2] = eh->dstAddress[2];
+                srcMAC[3] = eh->dstAddress[3];
+                srcMAC[4] = eh->dstAddress[4];
+                srcMAC[5] = eh->dstAddress[5];
+                printf("got packet %u ", headers[0].identification);
+                printf("of %u\n", headers[0].totalPackets);
+                printf("File: %s\n", headers[0].filename);
+                printf("%s\n", headers[0].data);
+                currentPacket++;
+                /*
+                PrintEthernetHeader(eh);
+                PrintIPHeader(ih);
+                PrintUDPHeader(udph);
+                PrintRawData(temp.data, size);
+                */
+            }
+            else if (temp.identification == currentPacket && currentPacket != 1)
+            {
+                memcpy(&headers[currentPacket - 1], appData, sizeof(BlitzHeader)-8);
+                headers[currentPacket - 1].data = (unsigned char *) malloc(temp.length + 1);
+                memset(headers[currentPacket - 1].data,  0, temp.length + 1);
+                memcpy(headers[currentPacket - 1].data, appData + sizeof(BlitzHeader) - 8, temp.length);
+                printf("\n___________________________________________\n");
+                printf("\tBlitz detected\n");
+                printf("-------------------------------------------\n");
+                printf("%u.%u.%u.%u from %u.%u.%u.%u", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
+                       ih->srcAddr[0], ih->srcAddr[1], ih->srcAddr[2], ih->srcAddr[3]);
+                printf("got packet %u ", headers[currentPacket - 1].identification);
+                printf("of %u\n", headers[currentPacket - 1].totalPackets);
+                printf("File: %s\n", headers[currentPacket - 1].filename);
+                printf("%s\n", headers[currentPacket - 1].data);
+                currentPacket++;
+            }
         }
     }
-    pthread_mutex_unlock(&mutex);
+}
+
+
+void CreatePacketHeader(unsigned char *data, BlitzHeader header, pcap_if_t *device)
+{
+    UDPHeader *UDPHdr = (UDPHeader *) malloc(sizeof(UDPHeader));
+    IPHeader *IPHdr = (IPHeader *) malloc(sizeof(IPHeader));
+    EthernetHeader *ETHdr = (EthernetHeader *) malloc(sizeof(EthernetHeader));
+    unsigned char IPHelper[sizeof(IPHeader) - sizeof(unsigned short)];
+    char srcIP[16];
+    ///Setting up destinations
+    pcap_addr_t *addr;
+    for (addr = device->addresses; addr; addr = addr->next)
+    {
+        if (addr->addr->sa_family == AF_INET)
+        {
+            if (addr->addr)
+                strcpy(srcIP, ConvertSockaddrToString(addr->addr));
+        }
+    }
+
+    ///Initializing
+    memset(UDPHdr, 0, sizeof(UDPHeader));
+    memset(IPHdr, 0, sizeof(IPHeader));
+    memset(ETHdr, 0, sizeof(EthernetHeader));
+
+    ///Creating a udp header
+    UDPHdr->datagramLength = htons(sizeof(BlitzHeader) - 8 + sizeof(UDPHeader));
+    UDPHdr->srcPort = htons(DEFAULT_PORT);
+    UDPHdr->dstPort = htons(DEFAULT_PORT);
+
+    ///Creating an ip header
+    IPHdr->nextProtocol = 17;//0x11 UDP protocol
+    IPHdr->dstAddr[0]=dstIP[0];
+    IPHdr->dstAddr[1]=dstIP[1];
+    IPHdr->dstAddr[2]=dstIP[2];
+    IPHdr->dstAddr[3]=dstIP[3];
+    SetIP(IPHdr->srcAddr, srcIP);
+    IPHdr->version = 4;
+    IPHdr->headerLength = 20 / 4;
+    IPHdr->tos = 0;
+    IPHdr->ttl = 128;
+    IPHdr->length = htons(sizeof(IPHeader) + sizeof(BlitzHeader) - 12 + sizeof(UDPHeader));
+    IPHdr->fragmentOffset = htons(0x800);
+    memcpy(IPHelper, IPHdr, 22);
+
+    ///Creating ip and udp headers
+    UDPHdr->checkSum = UDPCheckSum(UDPHdr, IPHdr, header);
+    IPHdr->checkSum = IPChecksum(IPHelper);
+
+
+    ///Creating a ethernet header
+    ETHdr->srcAddress[0]=srcMAC[0];
+    ETHdr->srcAddress[1]=srcMAC[1];
+    ETHdr->srcAddress[2]=srcMAC[2];
+    ETHdr->srcAddress[3]=srcMAC[3];
+    ETHdr->srcAddress[4]=srcMAC[4];
+    ETHdr->srcAddress[5]=srcMAC[5];
+    ETHdr->dstAddress[0] = 0xff;
+    ETHdr->dstAddress[1] = 0xff;
+    ETHdr->dstAddress[2] = 0xff;
+    ETHdr->dstAddress[3] = 0xff;
+    ETHdr->dstAddress[4] = 0xff;
+    ETHdr->dstAddress[5] = 0xff;
+    ETHdr->type = htons(0x0800);
+    memcpy(data, ETHdr, sizeof(EthernetHeader));
+    memcpy(data + sizeof(EthernetHeader), IPHdr, sizeof(IPHeader));
+    memcpy(data + sizeof(EthernetHeader) + sizeof(IPHeader) - 4, UDPHdr, sizeof(UDPHeader));
+
+    UDPHdr = NULL;
+    IPHdr = NULL;
+    ETHdr = NULL;
+
+    free(UDPHdr);
+    free(IPHdr);
+    free(ETHdr);
 }
