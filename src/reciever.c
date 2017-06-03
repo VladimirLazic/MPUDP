@@ -94,6 +94,11 @@ void *DeviceThreadFunction(void *device)
         printf("\n%s\n", errBuffer);
         return NULL;
     }
+    if(pcap_datalink(deviceHandle) != 1)
+    {
+        printf("Not ethernet terminating %s", threadDevice->name);
+        return  NULL;
+    }
     if (pcap_compile(deviceHandle, &fcode, filterExpr, 1, netmask))
     {
         printf("\n Unable to compile the packet filter. Check the syntax.\n");
