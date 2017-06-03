@@ -9,6 +9,9 @@ void PrintInterface(pcap_if_t *dev)
     printf("\t Name: \t\t %s\n", dev->name);
     if (dev->description)
         printf("\t Description: \t %s\n", dev->description);
+#ifdef _WIN32
+    printf("Not implemented for win\n");
+#else
     for (addr = dev->addresses; addr; addr = addr->next)
     {
         if (addr->addr->sa_family == AF_INET)
@@ -23,6 +26,8 @@ void PrintInterface(pcap_if_t *dev)
                 printf("\t\tAddress: %s\n", ConvertSockaddrToString(addr->addr));
         }
     }
+#endif
+
 }
 
 char *ConvertSockaddrToString(struct sockaddr *address)

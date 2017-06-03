@@ -14,6 +14,7 @@
 #define HAVE_STRUCT_TIMESPEC
 #pragma comment(lib, "Ws2_32.lib")
 #include <windows.h>
+#include <winsock2.h>
 #endif // _WIN32
 
 #ifdef _MSC_VER
@@ -230,9 +231,31 @@ void PrintDatagram(unsigned len);
  */
 void InitDatagram(FileInfo fileinfo, Segment *segment);
 
+/**
+ * @brief
+ *  Converts IP octet string to bytes
+ * @param IP
+ *  IP data
+ * @param IPStr
+ *  IP Octet string
+ */
 void SetIP(unsigned char IP[4], char *IPStr);
 
+/**
+ * @brief
+ *  Covert MAC hex string to bytes
+ * @param MAC
+ *  MAC data
+ * @param MACStr
+ * MAC Hex string
+ */
 void SetMAC(unsigned char MAC[6], char *MACStr);
 
+/**
+ * @brief
+ *  Sleep that works on win and linux
+ * @param sleepMS
+ *  MS sleep
+ */
 void MySleep(unsigned int sleepMS);
 #endif
