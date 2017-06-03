@@ -13,6 +13,7 @@
 #ifdef _WIN32
 #define HAVE_STRUCT_TIMESPEC
 #pragma comment(lib, "Ws2_32.lib")
+#include <windows.h>
 #endif // _WIN32
 
 #ifdef _MSC_VER
@@ -22,6 +23,7 @@
 #include <time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #endif
 
 #include <stdbool.h>
@@ -36,6 +38,8 @@
 #define SIGNAL 0x555555555555556
 #define FILENAME_LEN 30
 #define MTU 1500
+
+
 /**
  * @struct EthernetHeader
  * @brief
@@ -229,4 +233,6 @@ void InitDatagram(FileInfo fileinfo, Segment *segment);
 void SetIP(unsigned char IP[4], char *IPStr);
 
 void SetMAC(unsigned char MAC[6], char *MACStr);
+
+void MySleep(unsigned int sleepMS);
 #endif

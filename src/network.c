@@ -288,3 +288,12 @@ void SetMAC(unsigned char MAC[6], char *MACStr)
         MAC[i] = macPart;
     }
 }
+
+void MySleep(unsigned int sleepMS)
+{
+#ifdef _WIN32
+    Sleep(sleepMS);
+#else
+    usleep(sleepMS * 1000);
+#endif
+}
