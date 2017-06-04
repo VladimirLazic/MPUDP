@@ -38,7 +38,6 @@
 #define PCAP_IF_RUNNING        0x00000004    /* interface is running */
 #define SIGNAL 0x555555555555556
 #define FILENAME_LEN 30
-#define MTU 1500
 
 
 /**

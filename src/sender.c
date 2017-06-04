@@ -1,12 +1,14 @@
 #include <network.h>
 
 BlitzHeader *headers;
+BlitzHeader response;
 FileInfo file;
 unsigned filenameLength = 0;
 char dstIPStr[16];
 char dstMACStr[18];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 Segment *segment = NULL;
+unsigned currentPacket = 0;
 
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packet_header, const unsigned char *packet_data);
 
@@ -24,7 +26,7 @@ int main(int argc, char **argv)
     pthread_t *device_threads;
     if (argc != 5)
     {
-        printf("pathToFile Length dstIP dstMAC srcMAC\n");
+        printf("pathToFile Length dstIP dstMAC\n");
         exit(-1);
     }
     file = OpenAndDivide((unsigned) atoi(argv[2]), argv[1],
@@ -98,9 +100,10 @@ void *DeviceThreadFunction(void *device)
     pcap_if_t *threadDevice = (pcap_if_t *) device;
     pcap_t *deviceHandle;
     char errBuffer[PCAP_ERRBUF_SIZE];
-    static unsigned i = 0;
     struct bpf_program fCode;
     char filterExpr[] = "ip and udp";
+    char disabled = 0;
+    response.ack = 1;
     unsigned netmask = 0;
 
 #ifdef _WIN32
@@ -139,38 +142,33 @@ void *DeviceThreadFunction(void *device)
         printf("\nError setting filter.\n");
         return NULL;
     }
-    while (i < file.numberOfSegments)
+    while (currentPacket < file.numberOfSegments)
     {
         pthread_mutex_lock(&mutex);
-        if (sizeof(EthernetHeader) + sizeof(IPHeader) - 4 + sizeof(UDPHeader) + sizeof(BlitzHeader) - 8 +
-            headers[i].length > MTU)
-        {
-            printf("Data is bigger than MTU, either fragment or set smaller length\n");
-            return NULL;
-        }
         unsigned char *packet = (unsigned char *) malloc(
                 sizeof(EthernetHeader) + sizeof(IPHeader) - 4 + sizeof(UDPHeader) + sizeof(BlitzHeader) - 8 +
-                headers[i].length);
-        CreatePacketHeader(packet, headers[i], threadDevice);
-        memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4), &headers[i],
+                headers[currentPacket].length);
+        CreatePacketHeader(packet, headers[currentPacket], threadDevice);
+        memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4), &headers[currentPacket],
                sizeof(BlitzHeader) - 8);
         memcpy((packet + sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) - 4 + sizeof(BlitzHeader) - 8),
-               headers[i].data, headers[i].length);
-        ///Send UDP datagram
+               headers[currentPacket].data, headers[currentPacket].length);
         if (pcap_sendpacket(deviceHandle, packet,
                             sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) +
-                            headers[i].length - 12) != 0)
+                            headers[currentPacket].length - 12) != 0)
         {
-            printf("Error sending packet id: %d\n", headers[i].identification);
+            printf("Error sending packet id: %d\n", headers[currentPacket].identification);
+            disabled = 1;
         } else
         {
-            printf("Success sending packet id: %d by thread: %s\n", headers[i].identification, threadDevice->name);
+            printf("Sent via %s\n", threadDevice->name);
         }
-
-
-        i++;
+        if (!disabled)
+        {
+            pcap_loop(deviceHandle, 1, PacketHandler, NULL);
+        }
         pthread_mutex_unlock(&mutex);
-        MySleep(1000);
+        MySleep(5);
     }
     return NULL;
 }
@@ -195,7 +193,6 @@ void CreatePacketHeader(unsigned char *data, BlitzHeader header, pcap_if_t *devi
         {
             if (addr->addr)
                 strcpy(srcIP, ConvertSockaddrToString(addr->addr));
-            puts(srcIP);
         }
     }
     ///Initializing
@@ -249,3 +246,25 @@ void CreatePacketHeader(unsigned char *data, BlitzHeader header, pcap_if_t *devi
     free(ETHdr);
 }
 
+void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHandler, const unsigned char *packetData)
+{
+    unsigned long appLength;
+    unsigned char *appData;
+    EthernetHeader *eh;
+    IPHeader *ih;
+    UDPHeader *udph;
+    eh = (EthernetHeader *) packetData;
+    ih = (IPHeader *) (packetData + sizeof(EthernetHeader));
+    udph = (UDPHeader *) ((unsigned char *) ih + ih->headerLength * 4);
+    appLength = (unsigned long) (ntohs(udph->datagramLength) - 8);
+    appData = (unsigned char *) udph + 8;
+    if (appLength > sizeof(BlitzHeader) - 9)
+    {
+        memcpy(&response, appData, sizeof(BlitzHeader) - 8);
+        if (response.signalization == SIGNAL)
+        {
+            currentPacket = response.ack;
+        }
+    }
+
+}
