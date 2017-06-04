@@ -194,14 +194,14 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
             dstIP[1] = ih->srcAddr[1];
             dstIP[2] = ih->srcAddr[2];
             dstIP[3] = ih->srcAddr[3];
-            srcMAC[0] = eh->dstAddress[0];
-            srcMAC[1] = eh->dstAddress[1];
-            srcMAC[2] = eh->dstAddress[2];
-            srcMAC[3] = eh->dstAddress[3];
-            srcMAC[4] = eh->dstAddress[4];
-            srcMAC[5] = eh->dstAddress[5];
             if (temp.identification == currentPacket && currentPacket == 1)
             {
+                srcMAC[0] = eh->dstAddress[0];
+                srcMAC[1] = eh->dstAddress[1];
+                srcMAC[2] = eh->dstAddress[2];
+                srcMAC[3] = eh->dstAddress[3];
+                srcMAC[4] = eh->dstAddress[4];
+                srcMAC[5] = eh->dstAddress[5];
                 headers = (BlitzHeader*)malloc(sizeof(BlitzHeader)*temp.totalPackets);
                 memcpy(&headers[0], appData, sizeof(BlitzHeader)-8);
                 headers[0].data = (unsigned char *) malloc(temp.length + 1);
