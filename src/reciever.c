@@ -77,7 +77,6 @@ void *DeviceThreadFunction(void *device)
     struct bpf_program fcode;
     char filterExpr[] = "ip and udp";
     unsigned int netmask = 0;
-    unsigned int i = 0;
 #ifdef _WIN32
     if (threadDevice->addresses != NULL)
     netmask = ((struct sockaddr_in *)(threadDevice->addresses->netmask))->sin_addr.S_un.S_addr;
@@ -142,26 +141,13 @@ void *DeviceThreadFunction(void *device)
                         sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) - 12) != 0)
     {
         printf("Error sending response id: %d\n", response.identification);
-    } else
-    {
-        printf("Success sending response id: %d by thread: %s\n", response.identification, threadDevice->name);
     }
-    pthread_mutex_unlock(&mutex);
-    MySleep(1000);
-    //SEND ACK
-    pthread_mutex_lock(&mutex);
-    i = currentPacket;
     pthread_mutex_unlock(&mutex);
     while(currentPacket <= headers[0].totalPackets)
     {
-        while(currentPacket == i)
-        {
-            pthread_mutex_lock(&mutex);
-            pcap_loop(deviceHandle, 1, PacketHandler, NULL);
-            pthread_mutex_unlock(&mutex);
-        }
         pthread_mutex_lock(&mutex);
-        response.identification = headers[i-1].identification;
+        pcap_loop(deviceHandle, 1, PacketHandler, NULL);
+        response.identification = currentPacket;
         response.ack =(unsigned char)(currentPacket - 1);
         packet = (unsigned char*) malloc(sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) - 12);
         CreatePacketHeader(packet, response, threadDevice);
@@ -170,16 +156,10 @@ void *DeviceThreadFunction(void *device)
         if (pcap_sendpacket(deviceHandle, packet,
                             sizeof(EthernetHeader) + sizeof(IPHeader) + sizeof(UDPHeader) + sizeof(BlitzHeader) - 12) != 0)
         {
-            printf("Error sending packet id: %d\n", response.identification);
-        } else
-        {
-            printf("Success sending packet id: %d by thread: %s\n", response.identification, threadDevice->name);
+            printf("Error sending response id: %d\n", response.identification);
         }
         pthread_mutex_unlock(&mutex);
-        MySleep(1000);
-        pthread_mutex_lock(&mutex);
-        i = currentPacket;
-        pthread_mutex_unlock(&mutex);
+        MySleep(5);
     }
     return NULL;
 }
@@ -194,7 +174,6 @@ void *DeviceThreadFunction(void *device)
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData)
 {
     BlitzHeader temp;
-    unsigned long size = 0;
     unsigned long appLength;
     unsigned char *appData;
     EthernetHeader *eh;
@@ -211,6 +190,16 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
         memcpy(&temp, appData, sizeof(BlitzHeader) - 8);
         if (temp.signalization == SIGNAL)
         {
+            dstIP[0] = ih->srcAddr[0];
+            dstIP[1] = ih->srcAddr[1];
+            dstIP[2] = ih->srcAddr[2];
+            dstIP[3] = ih->srcAddr[3];
+            srcMAC[0] = eh->dstAddress[0];
+            srcMAC[1] = eh->dstAddress[1];
+            srcMAC[2] = eh->dstAddress[2];
+            srcMAC[3] = eh->dstAddress[3];
+            srcMAC[4] = eh->dstAddress[4];
+            srcMAC[5] = eh->dstAddress[5];
             if (temp.identification == currentPacket && currentPacket == 1)
             {
                 headers = (BlitzHeader*)malloc(sizeof(BlitzHeader)*temp.totalPackets);
@@ -218,32 +207,13 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
                 headers[0].data = (unsigned char *) malloc(temp.length + 1);
                 memset(headers[0].data,  0, temp.length + 1);
                 memcpy(headers[0].data, appData + sizeof(BlitzHeader) - 8, temp.length);
-                printf("\n___________________________________________\n");
-                printf("\tBlitz detected\n");
-                printf("-------------------------------------------\n");
-                printf("%u.%u.%u.%u from %u.%u.%u.%u", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
+                printf("\n\tBlitz detected\n");
+                printf("%u.%u.%u.%u from %u.%u.%u.%u ", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
                        ih->srcAddr[0], ih->srcAddr[1], ih->srcAddr[2], ih->srcAddr[3]);
-                dstIP[0] = ih->srcAddr[0];
-                dstIP[1] = ih->srcAddr[1];
-                dstIP[2] = ih->srcAddr[2];
-                dstIP[3] = ih->srcAddr[3];
-                srcMAC[0] = eh->dstAddress[0];
-                srcMAC[1] = eh->dstAddress[1];
-                srcMAC[2] = eh->dstAddress[2];
-                srcMAC[3] = eh->dstAddress[3];
-                srcMAC[4] = eh->dstAddress[4];
-                srcMAC[5] = eh->dstAddress[5];
                 printf("got packet %u ", headers[0].identification);
                 printf("of %u\n", headers[0].totalPackets);
-                printf("File: %s\n", headers[0].filename);
-                printf("%s\n", headers[0].data);
+                printf("%s\n",headers[0].data);
                 currentPacket++;
-                /*
-                PrintEthernetHeader(eh);
-                PrintIPHeader(ih);
-                PrintUDPHeader(udph);
-                PrintRawData(temp.data, size);
-                */
             }
             else if (temp.identification == currentPacket && currentPacket != 1)
             {
@@ -251,10 +221,8 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
                 headers[currentPacket - 1].data = (unsigned char *) malloc(temp.length + 1);
                 memset(headers[currentPacket - 1].data,  0, temp.length + 1);
                 memcpy(headers[currentPacket - 1].data, appData + sizeof(BlitzHeader) - 8, temp.length);
-                printf("\n___________________________________________\n");
-                printf("\tBlitz detected\n");
-                printf("-------------------------------------------\n");
-                printf("%u.%u.%u.%u from %u.%u.%u.%u", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
+                printf("\n\tBlitz detected\n");
+                printf("%u.%u.%u.%u from %u.%u.%u.%u ", ih->dstAddr[0], ih->dstAddr[1], ih->dstAddr[2], ih->dstAddr[3],
                        ih->srcAddr[0], ih->srcAddr[1], ih->srcAddr[2], ih->srcAddr[3]);
                 printf("got packet %u ", headers[currentPacket - 1].identification);
                 printf("of %u\n", headers[currentPacket - 1].totalPackets);
