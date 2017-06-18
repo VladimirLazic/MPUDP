@@ -176,6 +176,8 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
     BlitzHeader temp;
     unsigned long appLength;
     unsigned char *appData;
+    static long long bytes = 0;
+    static long long startTime = 0,endTime = 0;
     EthernetHeader *eh;
     IPHeader *ih;
     UDPHeader *udph;
@@ -184,7 +186,10 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
     udph = (UDPHeader *) ((unsigned char *) ih + ih->headerLength * 4);
     appLength = (unsigned long) (ntohs(udph->datagramLength) - 8);
     appData = (unsigned char *) udph + 8;
-
+    if(currentPacket == 1)
+    {
+        startTime = packetHeader->ts.tv_sec * 1000000 + packetHeader->ts.tv_usec;
+    }
     if (appLength > sizeof(BlitzHeader) - 8)
     {
         memcpy(&temp, appData, sizeof(BlitzHeader) - 8);
@@ -214,6 +219,12 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
                 printf("of %u\n", headers[0].totalPackets);
                 printf("%s\n",headers[0].data);
                 currentPacket++;
+                bytes += packetHeader->len;
+                if(currentPacket == headers[0].totalPackets + 1)
+                {
+                    endTime = packetHeader->ts.tv_sec * 1000000 + packetHeader->ts.tv_usec;
+                    printf("Total: %llu [Bytes]\n rate: %f [bits/sec]\n",bytes,(double)(bytes*8)/(endTime - startTime)*1000000);
+                }
             }
             else if (temp.identification == currentPacket && currentPacket != 1)
             {
@@ -229,6 +240,12 @@ void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader,
                 printf("File: %s\n", headers[currentPacket - 1].filename);
                 printf("%s\n", headers[currentPacket - 1].data);
                 currentPacket++;
+                bytes += packetHeader->len;
+                if(currentPacket == headers[0].totalPackets + 1)
+                {
+                    endTime = packetHeader->ts.tv_sec * 1000000 + packetHeader->ts.tv_usec;
+                    printf("Total: %llu [Bytes]\n rate: %f [bits/sec]\n",bytes,(double)(bytes*8)/(endTime - startTime)*1000000);
+                }
             }
         }
     }
