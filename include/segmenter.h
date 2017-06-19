@@ -97,7 +97,7 @@ void SortSegments(Segment *A, FileInfo X);
  * @param N
  *  How much to clear
  */
-void ClearBuffer(char *data, unsigned int N);
+void ClearBuffer( char *data, unsigned int N);
 
 /**
  * @param segment

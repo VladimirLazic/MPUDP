@@ -105,7 +105,7 @@ FileInfo OpenAndDivide(unsigned int N, const char *path,
             }
 
             ClearBuffer((*segment)[numberOfSegments - 1].data, N + 1);
-            strcpy((*segment)[numberOfSegments - 1].data, stream);
+            memcpy((*segment)[numberOfSegments - 1].data, stream, N + 1);
             (*segment)[numberOfSegments - 1].segmentNumber = numberOfSegments;
 
             ClearBuffer(stream, N);
@@ -133,7 +133,7 @@ FileInfo OpenAndDivide(unsigned int N, const char *path,
         exit(EXIT_FAILURE);
     }
     ClearBuffer((*segment)[numberOfSegments - 1].data, N + 1);
-    strcpy((*segment)[numberOfSegments - 1].data, stream);
+    memcpy((*segment)[numberOfSegments - 1].data, stream, N + 1);
     (*segment)[numberOfSegments - 1].segmentNumber = numberOfSegments;
     ret.numberOfSegments = numberOfSegments;
     ret.lengthOfLastSegment = sizeOfSegment;
@@ -172,10 +172,13 @@ void Reconstruct(FileInfo info, Segment segment[])
     i = 0;
     while (i < info.numberOfSegments - 1)
     {
-        fwrite(segment[i].data, sizeof(char), info.lengthOfSegment, dest);
+        int j = 0;
+        for(j = 0; j < info.lengthOfSegment; j ++)
+        {
+            fputc(segment[i].data[j],dest);
+        }
         i++;
     }
-
     i = 0;
     while (i != info.lengthOfLastSegment)
     {
