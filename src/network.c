@@ -302,3 +302,24 @@ void MySleep(unsigned int sleepMS)
     usleep(sleepMS * 1000);
 #endif
 }
+
+void ReconstructFromHeaders(BlitzHeader* source)
+{
+    FILE *dest = fopen(source[0].filename, "wb");
+    unsigned total = source[0].totalPackets;
+    unsigned i = 0;
+    if (dest == NULL)
+    {
+        printf("Can't make file %s\n", source[0].filename);
+        exit(EXIT_FAILURE);
+    }
+    for( i = 0; i < total; i ++)
+    {
+        unsigned j = 0;
+        for ( j = 0; j < source[i].length; j ++)
+        {
+            fputc(source[i].data[j],dest);
+        }
+    }
+    fclose(dest);
+}

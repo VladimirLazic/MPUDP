@@ -105,7 +105,7 @@ typedef struct blitz
     unsigned totalPackets;
     unsigned length;
     unsigned char ack;
-    unsigned char filename[FILENAME_LEN];
+    char filename[FILENAME_LEN];
     unsigned char *data;
 } BlitzHeader;
 
@@ -257,4 +257,12 @@ void SetMAC(unsigned char MAC[6], char *MACStr);
  *  MS sleep
  */
 void MySleep(unsigned int sleepMS);
+
+/**
+ * @brief
+ *  Reconstructs file directly from headers
+ * @param source
+ *  Received source
+ */
+void ReconstructFromHeaders(BlitzHeader* source);
 #endif

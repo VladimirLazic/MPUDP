@@ -65,6 +65,7 @@ int main()
         pthread_join(device_threads[thread], NULL);
     }
     free(device_threads);
+    ReconstructFromHeaders(headers);
     return 0;
 }
 
