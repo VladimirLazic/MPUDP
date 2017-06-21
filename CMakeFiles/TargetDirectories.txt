@@ -1,0 +1,4 @@
+/home/vladimir/Documents/MPUDP/CMakeFiles/rebuild_cache.dir
+/home/vladimir/Documents/MPUDP/CMakeFiles/edit_cache.dir
+/home/vladimir/Documents/MPUDP/CMakeFiles/reciever.dir
+/home/vladimir/Documents/MPUDP/CMakeFiles/sender.dir
