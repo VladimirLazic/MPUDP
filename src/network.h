@@ -30,7 +30,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <pcap.h>
-#include <segmenter.h>
+#include "segmenter.h"
 
 #define DEFAULT_PORT   27015
 #define PCAP_IF_LOOPBACK    0x00000001    /* interface is loopback */
@@ -105,7 +105,7 @@ typedef struct blitz
     unsigned totalPackets;
     unsigned length;
     unsigned char ack;
-    char filename[FILENAME_LEN];
+    unsigned char filename[FILENAME_LEN];
     unsigned char *data;
 } BlitzHeader;
 
@@ -257,12 +257,4 @@ void SetMAC(unsigned char MAC[6], char *MACStr);
  *  MS sleep
  */
 void MySleep(unsigned int sleepMS);
-
-/**
- * @brief
- *  Reconstructs file directly from headers
- * @param source
- *  Received source
- */
-void ReconstructFromHeaders(BlitzHeader* source);
 #endif

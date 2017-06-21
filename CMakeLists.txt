@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7)
+
 project(MPUDP)
 set(CMAKE_C_STANDARD 11)
 include_directories(include)
