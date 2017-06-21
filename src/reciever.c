@@ -165,13 +165,6 @@ void *DeviceThreadFunction(void *device)
     return NULL;
 }
 
-
-/**
- * @todo
- *  Get timestamps from packetHeader
- *
- */
-
 void PacketHandler(unsigned char *param, const struct pcap_pkthdr *packetHeader, const unsigned char *packetData)
 {
     BlitzHeader temp;

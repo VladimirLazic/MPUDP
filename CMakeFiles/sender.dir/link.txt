@@ -1,1 +1,0 @@
-/usr/bin/cc     CMakeFiles/sender.dir/src/segmenter.o CMakeFiles/sender.dir/src/network.o CMakeFiles/sender.dir/src/sender.o  -o sender -rdynamic -lpcap -lpthread 

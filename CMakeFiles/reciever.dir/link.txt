@@ -1,1 +1,0 @@
-/usr/bin/cc     CMakeFiles/reciever.dir/src/segmenter.o CMakeFiles/reciever.dir/src/network.o CMakeFiles/reciever.dir/src/reciever.o  -o reciever -rdynamic -lpcap -lpthread 
