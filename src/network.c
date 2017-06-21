@@ -122,7 +122,7 @@ unsigned short BytesTo16(unsigned char X, unsigned char Y)
 unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, BlitzHeader data)
 {
     unsigned short CheckSum = 0;
-
+    int i = 0;
 ///length of pseudo_header = Data length + 8 bytes UDP header + Two 4 byte IP's + 1 byte protocol
     unsigned short pseudo_length = sizeof(BlitzHeader) - 8 + data.length + 8 + 9;
 
@@ -134,7 +134,7 @@ unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, BlitzHeader data)
 
 ///Init
     unsigned char *pseudo_header = (unsigned char *) malloc(pseudo_length * sizeof(unsigned char));
-    for (int i = 0; i < pseudo_length; i++)
+    for (i = 0; i < pseudo_length; i++)
     {
         pseudo_header[i] = 0x00;
     }
@@ -164,7 +164,7 @@ unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, BlitzHeader data)
     memcpy(pseudo_header + 17 + sizeof(BlitzHeader) - 8, data.data, data.length);
 
 
-    for (int i = 0; i < pseudo_length; i += 2)
+    for (i = 0; i < pseudo_length; i += 2)
     {
         unsigned short Tmp = BytesTo16(pseudo_header[i], pseudo_header[i + 1]);
         unsigned short Difference = (unsigned short) 65535 - CheckSum;
@@ -182,7 +182,8 @@ unsigned short UDPCheckSum(UDPHeader *udp, IPHeader *ip, BlitzHeader data)
 unsigned short IPChecksum(unsigned char *ip)
 {
     unsigned short CheckSum = 0;
-    for (int i = 0; i < 22; i += 2)
+    int i = 0;
+    for (i = 0; i < 22; i += 2)
     {
         unsigned short Tmp = BytesTo16(ip[i], ip[i + 1]);
         unsigned short Difference = (unsigned short) 65535 - CheckSum;
